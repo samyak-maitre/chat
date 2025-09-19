@@ -1,26 +1,14 @@
-# utils.py
-import struct
-
-def send_message(sock, msg_type: int, payload: bytes):
-    """Send a message over TCP: 4-byte length + 1-byte type + payload"""
+def send_message(sock, msg_type, payload):
     length = len(payload)
-    header = struct.pack(">I", length) + struct.pack("B", msg_type)
+    header = length.to_bytes(4, "big") + msg_type.to_bytes(1, "big")
     sock.sendall(header + payload)
 
 def recv_message(sock):
-    """Receive a single message"""
-    header = b""
-    while len(header) < 5:
-        chunk = sock.recv(5 - len(header))
-        if not chunk:
-            return None, None
-        header += chunk
-    length = struct.unpack(">I", header[:4])[0]
-    msg_type = header[4]
+    header = sock.recv(5)
+    if not header:
+        return b""
+    length = int.from_bytes(header[:4], "big")
     payload = b""
     while len(payload) < length:
-        chunk = sock.recv(length - len(payload))
-        if not chunk:
-            return None, None
-        payload += chunk
-    return msg_type, payload
+        payload += sock.recv(length - len(payload))
+    return payload

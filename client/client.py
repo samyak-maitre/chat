@@ -1,44 +1,51 @@
-# client/client.py
-from http.server import BaseHTTPRequestHandler, HTTPServer
+#ship proxy
+
 import socket
 import threading
 import queue
-from server.utils import send_message, recv_message
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from io import BytesIO
+from utils import send_message, recv_message
 
-OFFSHORE_HOST = "offshore_host_here"
+OFFSHORE_HOST = "offshore-proxy"
 OFFSHORE_PORT = 9999
-LISTEN_PORT = 8080
+TCP_CONN = None
+REQUEST_QUEUE = queue.Queue()
 
-request_queue = queue.Queue()
-response_map = {}
+def tcp_connect():
+    global TCP_CONN
+    TCP_CONN = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    TCP_CONN.connect((OFFSHORE_HOST, OFFSHORE_PORT))
+    print(f"[CLIENT] Connected to offshore proxy at {OFFSHORE_HOST}:{OFFSHORE_PORT}")
 
-tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-tcp_sock.connect((OFFSHORE_HOST, OFFSHORE_PORT))
-
-def tcp_worker():
+def process_queue():
     while True:
-        handler = request_queue.get()
-        raw_request = handler.raw_requestline + b"".join(handler.headers.buffer) + b"\r\n" + (handler.rfile.read(int(handler.headers.get('Content-Length', 0))) if handler.command != 'GET' else b"")
-        send_message(tcp_sock, 0, raw_request)
-        msg_type, response = recv_message(tcp_sock)
-        handler.wfile.write(response)
-
-threading.Thread(target=tcp_worker, daemon=True).start()
+        client_handler, raw_request = REQUEST_QUEUE.get()
+        send_message(TCP_CONN, 0, raw_request)
+        response_bytes = recv_message(TCP_CONN)
+        client_handler.wfile.write(response_bytes)
+        REQUEST_QUEUE.task_done()
 
 class ProxyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.queue_request()
-    def do_POST(self):
-        self.queue_request()
-    def do_PUT(self):
-        self.queue_request()
-    def do_DELETE(self):
-        self.queue_request()
     def do_CONNECT(self):
-        self.send_error(501, "CONNECT not implemented yet")
-    def queue_request(self):
-        request_queue.put(self)
+        self.send_response(200, "Connection Established")
+        self.end_headers()
+        REQUEST_QUEUE.put((self, self.raw_requestline + b"\r\n" + self.headers.as_bytes()))
 
-server = HTTPServer(('0.0.0.0', LISTEN_PORT), ProxyHandler)
-print(f"[INFO] Ship proxy listening on port {LISTEN_PORT}")
-server.serve_forever()
+    def do_GET(self): self._queue_request()
+    def do_POST(self): self._queue_request()
+    def do_PUT(self): self._queue_request()
+    def do_DELETE(self): self._queue_request()
+
+    def _queue_request(self):
+        raw_request = self.raw_requestline + b"\r\n" + self.headers.as_bytes()
+        if "Content-Length" in self.headers:
+            raw_request += self.rfile.read(int(self.headers["Content-Length"]))
+        REQUEST_QUEUE.put((self, raw_request))
+
+if __name__ == "__main__":
+    tcp_connect()
+    threading.Thread(target=process_queue, daemon=True).start()
+    server = HTTPServer(("0.0.0.0", 8080), ProxyHandler)
+    print("[CLIENT] Ship proxy running on port 8080...")
+    server.serve_forever()

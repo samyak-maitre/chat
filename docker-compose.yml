@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  offshore-proxy:
+    build: ./server
+    container_name: offshore
+    ports:
+      - "9999:9999"
+
+  ship-proxy:
+    build: ./client
+    container_name: ship
+    ports:
+      - "8080:8080"
+    depends_on:
+      - offshore-proxy
+    environment:
+      - OFFSHORE_HOST=offshore-proxy
+      - OFFSHORE_PORT=9999
+
+
+# docker-compose up --build

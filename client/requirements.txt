@@ -1,0 +1,21 @@
+Run Containers
+
+Run server first:
+docker run -d --name offshore -p 9999:9999 offshore-proxy
+
+Run client, linking to server:
+docker run -d --name ship -p 8080:8080 --link offshore:offshore-proxy ship-proxy
+
+
+Usage
+
+On Linux/Mac:
+curl -x http://localhost:8080 http://httpforever.com/
+
+On Windows:
+curl.exe -x http://localhost:8080 http://httpforever.com/
+
+
+Multiple curl calls are handled sequentially.
+Supports HTTP methods: GET, POST, PUT, DELETE.
+HTTPS supported via CONNECT tunneling.
