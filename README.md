@@ -5,20 +5,10 @@ It reuses a single persistent TCP connection to the offshore proxy server, ensur
 
 ---
 
+## 📂 Structure
 ship-proxy-system/
-│── client/
-│   ├── client.py
-│   ├── utils.py
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-│── server/
-│   ├── server.py
-│   ├── utils.py
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── README.md
+├── client/ # Ship proxy (exposes :8080)
+├── server/ # Offshore proxy (exposes :9999)
 
 
 ---
